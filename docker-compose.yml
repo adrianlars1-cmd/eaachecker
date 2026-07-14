@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eaachecker
+      POSTGRES_PASSWORD: eaachecker
+      POSTGRES_DB: eaachecker
+    ports:
+      - "5432:5432"
+    volumes:
+      - eaachecker_pg_data:/var/lib/postgresql/data
+
+volumes:
+  eaachecker_pg_data:

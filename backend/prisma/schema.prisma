@@ -1,0 +1,72 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stripeCustomerId String? @unique
+
+  subscription Subscription?
+  scans        Scan[]
+
+  @@map("users")
+}
+
+model Subscription {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  stripeSubscriptionId String  @unique
+  stripePriceId        String
+  status               String
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Scan {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  url          String
+  status       String  @default("pending")
+  errorMessage String?
+
+  score            Int?
+  estimatedFineMin Int?
+  estimatedFineMax Int?
+
+  language String @default("sv")
+
+  rawAxeResults        Json?
+  rawLighthouseResults Json?
+  summaryForAI         Json?
+  aiFreeSummary        Json?
+  aiFullReport         Json?
+
+  isRescan     Boolean @default(false)
+  parentScanId String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([url])
+  @@map("scans")
+}
