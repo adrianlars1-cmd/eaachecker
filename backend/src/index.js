@@ -13,6 +13,10 @@ import billingRoutes, { stripeWebhookHandler } from './routes/billing.routes.js'
 
 const app = express()
 
+// Render (and most PaaS hosts) sit behind a reverse proxy — without this,
+// express-rate-limit can't reliably read the real client IP from X-Forwarded-For.
+app.set('trust proxy', 1)
+
 app.use(cors({ origin: env.FRONTEND_URL }))
 
 // Stripe webhook needs the raw request body for signature verification, so it
