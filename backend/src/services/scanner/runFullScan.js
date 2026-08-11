@@ -45,6 +45,12 @@ export async function runFullScan(scanId) {
     const axeResults = await runAxe(page)
     const lhr = await runLighthouse(scan.url)
 
+    // Free the browser's memory before calling out to Claude — on
+    // memory-constrained hosts, keeping Chromium alive during the AI call
+    // can starve the outbound HTTPS connection and cause it to drop.
+    await browser.close().catch(() => {})
+    browser = null
+
     const summary = summarizeForClaude(scan.url, axeResults, lhr)
     const score = calculateScore(axeResults, lhr)
     const fineRange = estimateFineRange(score)
