@@ -1,5 +1,6 @@
 import { anthropic, MODELS } from './anthropicClient.js'
 import { buildFreeSummaryPrompt } from './prompts/systemPrompt.js'
+import { withRetry } from '../../utils/retry.js'
 
 const TOOL = {
   name: 'submit_free_summary',
@@ -29,14 +30,16 @@ const TOOL = {
 }
 
 export async function generateFreeSummary(summary, languageCode) {
-  const response = await anthropic.messages.create({
-    model: MODELS.free,
-    max_tokens: 1536,
-    system: buildFreeSummaryPrompt(languageCode),
-    tools: [TOOL],
-    tool_choice: { type: 'tool', name: TOOL.name },
-    messages: [{ role: 'user', content: JSON.stringify(summary) }],
-  })
+  const response = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODELS.free,
+      max_tokens: 1536,
+      system: buildFreeSummaryPrompt(languageCode),
+      tools: [TOOL],
+      tool_choice: { type: 'tool', name: TOOL.name },
+      messages: [{ role: 'user', content: JSON.stringify(summary) }],
+    }),
+  )
 
   const toolUse = response.content.find((block) => block.type === 'tool_use')
   if (!toolUse) throw new Error('AI did not return a structured summary')
