@@ -13,6 +13,17 @@ process.on('unhandledRejection', (err) => {
   logger.error({ err }, 'Unhandled promise rejection')
 })
 
+// Some third-party SDKs (seen with Stripe's client when a malformed API key
+// hits a low-level http.setHeader call inside a retry timer) throw
+// synchronously outside any promise chain, where neither try/catch around an
+// await nor 'unhandledRejection' can catch it. This is normally a crash-and-
+// exit signal, but for a stateless HTTP server, staying up to keep serving
+// other in-flight requests is safer than a hard crash that Render then has to
+// notice and restart from scratch, dropping every concurrent request with it.
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception — process would otherwise have crashed')
+})
+
 import authRoutes from './routes/auth.routes.js'
 import userRoutes from './routes/user.routes.js'
 import scanRoutes from './routes/scan.routes.js'
