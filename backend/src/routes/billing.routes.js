@@ -3,6 +3,7 @@ import { stripe } from '../services/billing/stripeClient.js'
 import { env } from '../config/env.js'
 import { requireAuth } from '../middleware/auth.js'
 import { logger } from '../utils/logger.js'
+import { withRetry } from '../utils/retry.js'
 import {
   handleCheckoutSessionCompleted,
   handleSubscriptionUpdated,
@@ -13,26 +14,40 @@ import {
 const router = Router()
 
 router.post('/checkout-session', requireAuth, async (req, res) => {
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: req.user.stripeCustomerId || undefined,
-    client_reference_id: req.user.id,
-    line_items: [{ price: env.STRIPE_PRICE_ID, quantity: 1 }],
-    success_url: `${env.FRONTEND_URL}/account?checkout=success`,
-    cancel_url: `${env.FRONTEND_URL}/pricing?checkout=cancelled`,
-  })
-  res.json({ url: session.url })
+  try {
+    const session = await withRetry(() =>
+      stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: req.user.stripeCustomerId || undefined,
+        client_reference_id: req.user.id,
+        line_items: [{ price: env.STRIPE_PRICE_ID, quantity: 1 }],
+        success_url: `${env.FRONTEND_URL}/account?checkout=success`,
+        cancel_url: `${env.FRONTEND_URL}/pricing?checkout=cancelled`,
+      }),
+    )
+    res.json({ url: session.url })
+  } catch (err) {
+    logger.error({ err }, 'Failed to create Stripe checkout session')
+    res.status(502).json({ error: 'Could not start checkout right now. Please try again shortly.' })
+  }
 })
 
 router.post('/portal-session', requireAuth, async (req, res) => {
   if (!req.user.stripeCustomerId) {
     return res.status(400).json({ error: 'No billing account found. Subscribe first.' })
   }
-  const session = await stripe.billingPortal.sessions.create({
-    customer: req.user.stripeCustomerId,
-    return_url: `${env.FRONTEND_URL}/account`,
-  })
-  res.json({ url: session.url })
+  try {
+    const session = await withRetry(() =>
+      stripe.billingPortal.sessions.create({
+        customer: req.user.stripeCustomerId,
+        return_url: `${env.FRONTEND_URL}/account`,
+      }),
+    )
+    res.json({ url: session.url })
+  } catch (err) {
+    logger.error({ err }, 'Failed to create Stripe portal session')
+    res.status(502).json({ error: 'Could not open the billing portal right now. Please try again shortly.' })
+  }
 })
 
 // Mounted separately in index.js with express.raw() BEFORE the global JSON

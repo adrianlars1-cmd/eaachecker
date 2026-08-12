@@ -1,9 +1,17 @@
+import 'express-async-errors'
 import express from 'express'
 import cors from 'cors'
 import { env } from './config/env.js'
 import { logger } from './utils/logger.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { startRescanCron } from './services/cron/rescanJob.js'
+
+// A rejected promise anywhere that somehow escapes express-async-errors would
+// otherwise crash the whole process (and take down every other in-flight
+// request with it) — log it and keep the server alive instead.
+process.on('unhandledRejection', (err) => {
+  logger.error({ err }, 'Unhandled promise rejection')
+})
 
 import authRoutes from './routes/auth.routes.js'
 import userRoutes from './routes/user.routes.js'
