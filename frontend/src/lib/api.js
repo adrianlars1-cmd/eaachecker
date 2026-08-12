@@ -27,6 +27,7 @@ export const ScanAPI = {
 
 export const ReportAPI = {
   get: (id) => api.get(`/api/report/${id}`).then((r) => r.data),
+  downloadPdf: (id) => api.get(`/api/report/${id}/pdf`, { responseType: 'blob' }).then((r) => r.data),
 }
 
 export const BillingAPI = {

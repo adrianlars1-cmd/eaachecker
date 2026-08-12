@@ -17,6 +17,7 @@ export default function ReportPage() {
   const [report, setReport] = useState(null)
   const [error, setError] = useState(null)
   const [wakingUp, setWakingUp] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -93,6 +94,25 @@ export default function ReportPage() {
   const summary = report.aiFreeSummary || {}
   const topIssues = summary.topIssues || []
 
+  async function handleDownloadPdf() {
+    setDownloadingPdf(true)
+    try {
+      const blob = await ReportAPI.downloadPdf(report.id)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `eaachecker-report-${report.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert('Could not download the PDF. Please try again shortly.')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <>
       <Helmet>
@@ -129,7 +149,18 @@ export default function ReportPage() {
         </div>
 
         <div className="mt-10">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Full WCAG 2.1 AA report</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Full WCAG 2.1 AA report</h2>
+            {report.fullReportUnlocked && report.aiFullReport && (
+              <button
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloadingPdf ? 'Preparing PDF…' : 'Download PDF'}
+              </button>
+            )}
+          </div>
           {report.fullReportUnlocked && report.aiFullReport ? (
             <FullReport report={report.aiFullReport} />
           ) : (
