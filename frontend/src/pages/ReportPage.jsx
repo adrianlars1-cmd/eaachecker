@@ -7,26 +7,41 @@ import IssueCard from '../components/IssueCard'
 import LockedSection from '../components/LockedSection'
 
 const POLL_INTERVAL_MS = 2000
+// Render's free tier can take 50s+ to wake a sleeping backend — retry
+// transient/network errors for a while before concluding the report is
+// genuinely missing, instead of failing on the very first failed request.
+const MAX_WAKE_UP_MS = 75_000
 
 export default function ReportPage() {
   const { id } = useParams()
   const [report, setReport] = useState(null)
   const [error, setError] = useState(null)
+  const [wakingUp, setWakingUp] = useState(false)
   const timerRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
+    const startedAt = Date.now()
 
     async function poll() {
       try {
         const data = await ReportAPI.get(id)
         if (cancelled) return
+        setWakingUp(false)
         setReport(data)
         if (data.status === 'pending' || data.status === 'running') {
           timerRef.current = setTimeout(poll, POLL_INTERVAL_MS)
         }
-      } catch {
-        if (!cancelled) setError('Report not found.')
+      } catch (err) {
+        if (cancelled) return
+        const isRealNotFound = err.response?.status === 404
+        if (isRealNotFound || Date.now() - startedAt > MAX_WAKE_UP_MS) {
+          setError(isRealNotFound ? 'Report not found.' : 'The server is taking too long to respond. Please try again shortly.')
+          return
+        }
+        // Likely the backend is still waking up from being idle — keep retrying.
+        setWakingUp(true)
+        timerRef.current = setTimeout(poll, POLL_INTERVAL_MS)
       }
     }
 
@@ -49,7 +64,12 @@ export default function ReportPage() {
   }
 
   if (!report) {
-    return <ScanningState label="Loading report…" />
+    return (
+      <ScanningState
+        label={wakingUp ? 'Waking up the server…' : 'Loading report…'}
+        sublabel={wakingUp ? "The free hosting tier goes to sleep when idle — this can take up to a minute the first time." : undefined}
+      />
+    )
   }
 
   if (report.status === 'pending' || report.status === 'running') {
@@ -166,12 +186,12 @@ function StatusBadge({ status }) {
   )
 }
 
-function ScanningState({ label }) {
+function ScanningState({ label, sublabel }) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 px-6 py-24 text-center">
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
       <p className="text-slate-600">{label}</p>
-      <p className="text-sm text-slate-400">This usually takes 15–30 seconds.</p>
+      <p className="text-sm text-slate-400">{sublabel || 'This usually takes 15–30 seconds.'}</p>
     </div>
   )
 }
